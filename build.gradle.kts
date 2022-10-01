@@ -29,8 +29,8 @@ java {
     }
 }
 
-group = "org.openrewrite.recipe"
-description = "Rewrite recipes."
+group = "org.openrewrite.qat"
+description = "Rewrite recipe for Intel QAT enabling."
 
 repositories {
     mavenLocal()
