@@ -54,17 +54,15 @@ public class SSLContextQATRecipe extends Recipe {
         return new JavaVisitor<ExecutionContext>() {
 
             private final JavaTemplate getInstanceWithSysProperty = JavaTemplate.builder(this::getCursor,
-                    "System.getProperty(\"ssl.provider\")")
+                    "System.getProperty(\"ssl.protocol\")")
                     .build();
 
             @Override
             public J visitMethodInvocation(J.MethodInvocation method, ExecutionContext executionContext) {
                 if (GET_INSTANCE.matches(method)) {
-                    return method.withTemplate(getInstanceWithSysProperty,
-                            method.getCoordinates().replaceArguments());
-                } else {
-                    return super.visitMethodInvocation(method, executionContext);
+                    return method.withTemplate(getInstanceWithSysProperty, method.getCoordinates().replaceArguments());
                 }
+                return super.visitMethodInvocation(method, executionContext);
             }
         };
     }

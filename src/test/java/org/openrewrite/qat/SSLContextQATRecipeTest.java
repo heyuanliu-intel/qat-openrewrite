@@ -9,29 +9,16 @@ import static org.openrewrite.java.Assertions.java;
 
 class SSLContextQATRecipeTest implements RewriteTest {
 
-    // Note, you can define defaults for the RecipeSpec and these defaults will be
-    // used for all tests.
-    // In this case, the recipe and the parser are common. See below, on how the
-    // defaults can be overridden
-    // per test.
     @Override
     public void defaults(RecipeSpec spec) {
-
         spec.recipe(new SSLContextQATRecipe()).parser(JavaParser.fromJavaVersion()
                 .logCompilationWarningsAndErrors(true)
-                .classpath("guava"));
+                .classpath("guava")).expectedCyclesThatMakeChanges(2);
     }
 
     @Test
     void replaceSSLContext() {
         rewriteRun(
-                // There is an overloaded version or rewriteRun that allows the RecipeSpec to be
-                // customized specifically
-                // for a given test. In this case, the parser for this test is configured to not
-                // log compilation warnings.
-                spec -> spec.parser(JavaParser.fromJavaVersion()
-                        .logCompilationWarningsAndErrors(false)
-                        .classpath("guava")),
                 java(
                         """
                                 import java.security.NoSuchAlgorithmException;
@@ -51,19 +38,19 @@ class SSLContextQATRecipeTest implements RewriteTest {
 
                                 public class Test {
                                     public static void main() throws NoSuchAlgorithmException {
-                                        SSLContext ctx = SSLContext.getInstance(System.getProperty("ssl.provider"));
+                                        SSLContext ctx = SSLContext.getInstance(System.getProperty("ssl.protocol"));
                                     }
                                 }
                                 """));
     }
 
+    @Test
     void replaceSSLContextWithProvider() {
         rewriteRun(
                 java(
                         """
-                                import java.security.NoSuchAlgorithmException;
                                 import java.security.NoSuchProviderException;
-
+                                import java.security.NoSuchAlgorithmException;
                                 import javax.net.ssl.SSLContext;
 
                                 public class Test {
@@ -73,13 +60,13 @@ class SSLContextQATRecipeTest implements RewriteTest {
                                 }
                                 """,
                         """
+                                import java.security.NoSuchProviderException;
                                 import java.security.NoSuchAlgorithmException;
-
                                 import javax.net.ssl.SSLContext;
 
                                 public class Test {
-                                    public static void main() throws NoSuchAlgorithmException {
-                                        SSLContext ctx = SSLContext.getInstance(System.getProperty("ssl.provider"));
+                                    public static void main() throws NoSuchAlgorithmException, NoSuchProviderException {
+                                        SSLContext ctx = SSLContext.getInstance(System.getProperty("ssl.protocol"));
                                     }
                                 }
                                 """));
@@ -98,20 +85,21 @@ class SSLContextQATRecipeTest implements RewriteTest {
                                 public class Test {
 
                                     public static void main() throws NoSuchAlgorithmException, NoSuchProviderException {
-                                        SSLContext ctx = SSLContext.getInstance("TLS", new Provider(null, null, null) {
-
-                                        });
+                                        SSLContext ctx = SSLContext.getInstance("TLS", new Provider(null, null, null) {});
                                     }
                                 }
                                 """,
                         """
                                 import java.security.NoSuchAlgorithmException;
+                                import java.security.NoSuchProviderException;
+                                import java.security.Provider;
 
                                 import javax.net.ssl.SSLContext;
 
                                 public class Test {
-                                    public static void main() throws NoSuchAlgorithmException {
-                                        SSLContext ctx = SSLContext.getInstance(System.getProperty("ssl.provider"));
+
+                                    public static void main() throws NoSuchAlgorithmException, NoSuchProviderException {
+                                        SSLContext ctx = SSLContext.getInstance(System.getProperty("ssl.protocol"));
                                     }
                                 }
                                 """));
