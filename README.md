@@ -1,94 +1,54 @@
-## Rewrite recipe starter
+## Automatically Migrate to Intel QAT enabled OpenSSL Solution.
 
-This repository serves as a template for building your own recipe JARs and publishing them to a repository where they can be applied on [app.moderne.io](https://app.moderne.io) against all of the public OSS code that is included there.
+This project implements a [Rewrite module](https://github.com/openrewrite/rewrite) that performs common tasks when migrating from default JDK SSL/TLS implementation to Intel QAT enabled OpenSSL Solution.
 
-We include a sample recipe and test that just exists as a placeholder and is intended to be replaced by whatever recipe you are interested in writing.
+## Intel QAT enabled OpenSSL Recipes
 
-Fork this repository and customize by:
+| Recipe Name                                                    | Description                                                                                      |
+|----------------------------------------------------------------| ------------------------------------------------------------------------------------------------ |
+| [Add wildfly openssl as maven dependency](#AddMavenDependency) | Add wildfly openssl for a Maven build.                                                           |
+| [Register OpenSSL Provider](#RegisterProvider)                 | Register OpenSSL Provider in the project startup method.                                         |
+| [Migrate SSLContext getInstance API](#MigrateOpenSSLContext)   | Migrate SSLContext getInstance API from hard-coded ssl protocol and provider to system property. |
 
-1. Change the root project name in `settings.gradle.kts`.
-2. Change the `group` in `build.gradle.kts`.
-3. (Optional) Change the project name in `settings.gradle.kts`.
-4. Change the package structure from `org.openrewrite` to whatever you want.
+### Add wildfly openssl as Maven dependency<a name="AddMavenDependency"></a>
 
-## Local Publishing for Testing
+This recipe will add or update the latest 2.2.5.Final versions of the wildfly openssl framework for an existing Maven project.
 
-Before you publish your recipe module to an artifact repository, you may want to try it out locally.
-To do this on the command line, run `./gradlew publishToMavenLocal` (or equivalently `./gradlew pTML`).
-This will publish to your local maven repository, typically under `~/.m2/repository`.
-
-Replace the groupId, artifactId, and recipe name in these samples with those you selected in the previous steps. 
-
-In a Maven project's pom.xml, make your recipe module a plugin dependency:
 ```xml
-<project>
-    <build>
-        <plugins>
-            <plugin>
-                <groupId>org.openrewrite.maven</groupId>
-                <artifactId>rewrite-maven-plugin</artifactId>
-                <version>4.14.1</version>
-                <configuration>
-                    <activeRecipes>
-                        <recipe>org.openrewrite.starter.NoGuavaListsNewArrayList</recipe>
-                    </activeRecipes>
-                </configuration>
-                <dependencies>
-                    <dependency>
-                        <groupId>org.openrewrite.recipe</groupId>
-                        <artifactId>rewrite-recipe-starter</artifactId>
-                        <version>0.1.0-SNAPSHOT</version>
-                    </dependency>
-                </dependencies>
-            </plugin>
-        </plugins>
-    </build>
-</project>
+<dependencies>
+    <dependency>
+        <groupId>org.wildfly.openssl</groupId>
+        <artifactId>wildfly-openssl</artifactId>
+        <version>2.2.5.Final</version>
+    </dependency>
+</dependencies>
 ```
 
-Unlike Maven, Gradle must be explicitly configured to resolve dependencies from maven local.
-The root project of your gradle build, make your recipe module a dependency of the `rewrite` configuration:
+### Register OpenSSL Provider<a name="RegisterProvider"></a>
 
-```groovy
-plugins {
-    id("java")
-    id("org.openrewrite.rewrite") version("5.14.0")
-}
+This recipe will register the OpenSSLProvider in the application startup method. Should define the methodPattern to match the application startup code. For example: 
+rewrite.yml
 
-repositories {
-    mavenLocal()
-    mavenCentral()
-}
-
-dependencies {
-    rewrite("org.openrewrite.recipe:rewrite-recipe-starter:0.1.0-SNAPSHOT")
-}
-
-rewrite {
-    activeRecipe("org.openrewrite.starter.NoGuavaListsNewArrayList")
-}
+```
+---
+type: specs.openrewrite.org/v1beta/recipe
+name: com.intel.qat-recipe
+displayName: Refactor project to Intel QAT enabled OpenSSL Solution
+recipeList:
+  - org.openrewrite.qat.SSLContextQATRecipe:
+      methodPattern: com.test.Startup Main()
 ```
 
-Now you can run `mvn rewrite:run` or `gradlew rewriteRun` to run your recipe.
+And it will register OpenSSLProvider in the application startup code.
 
-## Publishing to Artifact Repositories
+```
+ OpenSSLProvider.register();
+```
 
-This project is configured to publish to Moderne's open artifact repository.
-Moderne's code search, refactoring, and modernization platform at [app.moderne.io](https://app.moderne.io) can draw recipes from this repository, as well as public repositories like [Maven Central](https://search.maven.org/).
+## Converting OpenSSL getInstance method from hard-coded protocol/provider to system property <a name="MigrateOpenSSLContext"></a>
 
-Also see:
+Methods in the `SSLContext` classes that will be migrated:
 
-* Sonatype's instructions for [publishing to Maven Central](https://maven.apache.org/repository/guide-central-repository-upload.html) 
-* Gradle's instructions on the [Gradle Publishing Plugin](https://docs.gradle.org/current/userguide/publishing_maven.html).
-
-### From Github Actions
-
-The .github directory contains a Github action that will push a snapshot on every successful build.
-
-Run the release action to publish a release version of a recipe.
-
-### From the command line
-
-To build a snapshot, run `./gradlew snapshot publish` to build a snapshot and publish it to Moderne's open artifact repository for inclusion at [app.moderne.io](https://app.moderne.io).
-
-To build a release, run `./gradlew final publish` to tag a release and publish it to Moderne's open artifact repository for inclusion at [app.moderne.io](https://app.moderne.io).
+- `getInstance(string)` --> `getInstance(System.getProperty("ssl.protocol"))`
+- `getInstance(string,string)` --> `getInstance(System.getProperty("ssl.protocol"))`
+- `getInstance(string,Provider)` --> `getInstance(System.getProperty("ssl.protocol"))`
