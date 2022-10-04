@@ -33,7 +33,6 @@ public class SSLContextQATRecipe extends Recipe {
     /**
      * A method pattern that is used to find matching method for application
      * startup.
-     * 
      * See {@link MethodMatcher} for details on the expression's syntax.
      */
     @Option(displayName = "Start Up Method pattern", description = "A method pattern that is used to find application startup.", example = "com.yourorg.A foo(int, int)")
@@ -66,7 +65,7 @@ public class SSLContextQATRecipe extends Recipe {
         return new SSLContextVisitor(new MethodMatcher(this.methodPattern));
     }
 
-    private class SSLContextVisitor extends JavaIsoVisitor<ExecutionContext> {
+    private static class SSLContextVisitor extends JavaIsoVisitor<ExecutionContext> {
         private final JavaTemplate registerProvider = JavaTemplate.builder(this::getCursor,
                 "OpenSSLProvider.register()")
                 .build();
@@ -85,6 +84,7 @@ public class SSLContextQATRecipe extends Recipe {
         public MethodDeclaration visitMethodDeclaration(MethodDeclaration method, ExecutionContext ctx) {
             if (methodMatcher.matches(method.getMethodType())) {
                 maybeAddImport("org.wildfly.openssl.OpenSSLProvider");
+                assert method.getBody() != null;
                 method = method.withTemplate(registerProvider, method.getBody().getCoordinates().firstStatement());
             }
             return super.visitMethodDeclaration(method,ctx);
