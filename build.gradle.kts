@@ -58,6 +58,7 @@ dependencies {
 
     implementation("org.openrewrite:rewrite-java")
     runtimeOnly("org.openrewrite:rewrite-java-17")
+    runtimeOnly("org.wildfly.openssl:wildfly-openssl-java:latest.release")
 
     testImplementation("org.junit.jupiter:junit-jupiter-api:latest.release")
     testImplementation("org.junit.jupiter:junit-jupiter-params:latest.release")
@@ -72,8 +73,13 @@ tasks.named<Test>("test") {
     jvmArgs = listOf("-XX:+UnlockDiagnosticVMOptions", "-XX:+ShowHiddenFrames")
 }
 
+tasks.withType<JavaCompile>().configureEach {
+    options.encoding = "UTF-8"
+    options.compilerArgs.add("-parameters")
+}
 tasks.named<JavaCompile>("compileJava") {
     options.release.set(8)
+    targetCompatibility = "1.8"
 }
 
 configure<ContactsExtension> {
