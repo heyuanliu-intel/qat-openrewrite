@@ -93,18 +93,49 @@ class SSLContextQATRecipeTest implements RewriteTest {
                                 }
                                 """,
                         """
-                                import java.security.NoSuchProviderException;
                                 import java.security.NoSuchAlgorithmException;
                                 import javax.net.ssl.SSLContext;
 
                                 public class Test {
-                                    public static void main() throws NoSuchAlgorithmException, NoSuchProviderException {
+                                    public static void main() throws NoSuchAlgorithmException {
                                         SSLContext ctx = SSLContext.getInstance(System.getProperty("ssl.protocol"));
                                     }
                                 }
                                 """));
     }
 
+    @Test
+    void replaceSSLContextWithProviderAndTryCatch() {
+        rewriteRun(
+                java(
+                        """
+                                import java.security.NoSuchProviderException;
+                                import java.security.NoSuchAlgorithmException;
+                                import javax.net.ssl.SSLContext;
+
+                                public class Test {
+                                    public static void main() throws NoSuchAlgorithmException {
+                                        try {
+                                            SSLContext ctx = SSLContext.getInstance("TLS", "qat");
+                                        } catch (NoSuchProviderException e) {
+                                            e.printStackTrace();
+                                        }
+                                    }
+                                }
+                                """,
+                        """
+                                import java.security.NoSuchAlgorithmException;
+                                import javax.net.ssl.SSLContext;
+
+                                public class Test {
+                                    public static void main() throws NoSuchAlgorithmException {
+                                        SSLContext ctx = SSLContext.getInstance(System.getProperty("ssl.protocol"));
+                                    }
+                                }
+                                """));
+    }
+
+    @Test
     void replaceSSLContextWithProviderClass() {
         rewriteRun(
                 java(
@@ -124,14 +155,13 @@ class SSLContextQATRecipeTest implements RewriteTest {
                                 """,
                         """
                                 import java.security.NoSuchAlgorithmException;
-                                import java.security.NoSuchProviderException;
                                 import java.security.Provider;
 
                                 import javax.net.ssl.SSLContext;
 
                                 public class Test {
 
-                                    public static void main() throws NoSuchAlgorithmException, NoSuchProviderException {
+                                    public static void main() throws NoSuchAlgorithmException {
                                         SSLContext ctx = SSLContext.getInstance(System.getProperty("ssl.protocol"));
                                     }
                                 }

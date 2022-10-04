@@ -22,6 +22,8 @@ import org.openrewrite.ExecutionContext;
 import org.openrewrite.java.JavaIsoVisitor;
 import org.openrewrite.java.JavaTemplate;
 import org.openrewrite.java.MethodMatcher;
+import org.openrewrite.java.cleanup.UnnecessaryCatch;
+import org.openrewrite.java.cleanup.UnnecessaryThrows;
 import org.openrewrite.java.search.UsesMethod;
 import org.openrewrite.java.tree.J;
 import org.openrewrite.java.tree.J.MethodDeclaration;
@@ -87,13 +89,16 @@ public class SSLContextQATRecipe extends Recipe {
                 assert method.getBody() != null;
                 method = method.withTemplate(registerProvider, method.getBody().getCoordinates().firstStatement());
             }
-            return super.visitMethodDeclaration(method,ctx);
+            return super.visitMethodDeclaration(method, ctx);
         }
 
         @Override
         public J.MethodInvocation visitMethodInvocation(J.MethodInvocation method, ExecutionContext ctx) {
             if (GET_INSTANCE.matches(method)) {
-                return method.withTemplate(getInstanceWithSysProperty, method.getCoordinates().replaceArguments());
+                method = method.withTemplate(getInstanceWithSysProperty, method.getCoordinates().replaceArguments());
+                doAfterVisit(new UnnecessaryCatch());
+                doAfterVisit(new UnnecessaryThrows());
+                return method;
             }
             return super.visitMethodInvocation(method, ctx);
         }
