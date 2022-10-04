@@ -15,18 +15,29 @@
  */
 package org.openrewrite.qat;
 
-import org.openrewrite.ExecutionContext;
+import org.openrewrite.Option;
 import org.openrewrite.Recipe;
 import org.openrewrite.TreeVisitor;
+import org.openrewrite.ExecutionContext;
 import org.openrewrite.java.JavaIsoVisitor;
 import org.openrewrite.java.JavaTemplate;
-import org.openrewrite.java.JavaVisitor;
 import org.openrewrite.java.MethodMatcher;
 import org.openrewrite.java.search.UsesMethod;
 import org.openrewrite.java.tree.J;
+import org.openrewrite.java.tree.J.MethodDeclaration;
 
 public class SSLContextQATRecipe extends Recipe {
+
     private static final MethodMatcher GET_INSTANCE = new MethodMatcher("javax.net.ssl.SSLContext getInstance(..)");
+
+    /**
+     * A method pattern that is used to find matching method for application
+     * startup.
+     * 
+     * See {@link MethodMatcher} for details on the expression's syntax.
+     */
+    @Option(displayName = "Start Up Method pattern", description = "A method pattern that is used to find application startup.", example = "com.yourorg.A foo(int, int)")
+    String methodPattern;
 
     @Override
     public String getDisplayName() {
@@ -44,6 +55,7 @@ public class SSLContextQATRecipe extends Recipe {
             @Override
             public J.CompilationUnit visitCompilationUnit(J.CompilationUnit cu, ExecutionContext executionContext) {
                 doAfterVisit(new UsesMethod<>(GET_INSTANCE));
+                doAfterVisit(new UsesMethod<>(methodPattern));
                 return cu;
             }
         };
@@ -51,19 +63,39 @@ public class SSLContextQATRecipe extends Recipe {
 
     @Override
     protected TreeVisitor<?, ExecutionContext> getVisitor() {
-        return new JavaVisitor<ExecutionContext>() {
+        return new SSLContextVisitor(new MethodMatcher(this.methodPattern));
+    }
 
-            private final JavaTemplate getInstanceWithSysProperty = JavaTemplate.builder(this::getCursor,
-                    "System.getProperty(\"ssl.protocol\")")
-                    .build();
+    private class SSLContextVisitor extends JavaIsoVisitor<ExecutionContext> {
+        private final JavaTemplate registerProvider = JavaTemplate.builder(this::getCursor,
+                "OpenSSLProvider.register()")
+                .build();
 
-            @Override
-            public J visitMethodInvocation(J.MethodInvocation method, ExecutionContext executionContext) {
-                if (GET_INSTANCE.matches(method)) {
-                    return method.withTemplate(getInstanceWithSysProperty, method.getCoordinates().replaceArguments());
-                }
-                return super.visitMethodInvocation(method, executionContext);
+        private final JavaTemplate getInstanceWithSysProperty = JavaTemplate.builder(this::getCursor,
+                "System.getProperty(\"ssl.protocol\")")
+                .build();
+
+        private final MethodMatcher methodMatcher;
+
+        public SSLContextVisitor(MethodMatcher methodMatcher) {
+            this.methodMatcher = methodMatcher;
+        }
+
+        @Override
+        public MethodDeclaration visitMethodDeclaration(MethodDeclaration method, ExecutionContext ctx) {
+            if (methodMatcher.matches(method.getMethodType())) {
+                maybeAddImport("org.wildfly.openssl.OpenSSLProvider");
+                method = method.withTemplate(registerProvider, method.getBody().getCoordinates().firstStatement());
             }
-        };
+            return super.visitMethodDeclaration(method,ctx);
+        }
+
+        @Override
+        public J.MethodInvocation visitMethodInvocation(J.MethodInvocation method, ExecutionContext ctx) {
+            if (GET_INSTANCE.matches(method)) {
+                return method.withTemplate(getInstanceWithSysProperty, method.getCoordinates().replaceArguments());
+            }
+            return super.visitMethodInvocation(method, ctx);
+        }
     }
 }

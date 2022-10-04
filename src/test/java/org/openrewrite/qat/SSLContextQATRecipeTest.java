@@ -11,9 +11,42 @@ class SSLContextQATRecipeTest implements RewriteTest {
 
     @Override
     public void defaults(RecipeSpec spec) {
-        spec.recipe(new SSLContextQATRecipe()).parser(JavaParser.fromJavaVersion()
+        SSLContextQATRecipe recipe = new SSLContextQATRecipe();
+        recipe.methodPattern = "TestRegister main()";
+
+        spec.recipe(recipe).parser(JavaParser.fromJavaVersion()
                 .logCompilationWarningsAndErrors(true)
                 .classpath("guava")).expectedCyclesThatMakeChanges(2);
+    }
+
+    @Test
+    void registerProvider() {
+        rewriteRun(
+                java(
+                        """
+                                import java.security.NoSuchAlgorithmException;
+
+                                import javax.net.ssl.SSLContext;
+
+                                public class TestRegister {
+                                    public static void main() throws NoSuchAlgorithmException {
+                                        SSLContext ctx = SSLContext.getInstance("TLS");
+                                    }
+                                }
+                                """,
+                        """
+                                import java.security.NoSuchAlgorithmException;
+
+                                import javax.net.ssl.SSLContext;
+                                import org.wildfly.openssl.OpenSSLProvider;
+
+                                public class TestRegister {
+                                    public static void main() throws NoSuchAlgorithmException {
+                                        OpenSSLProvider.register();
+                                        SSLContext ctx = SSLContext.getInstance(System.getProperty("ssl.protocol"));
+                                    }
+                                }
+                                """));
     }
 
     @Test
