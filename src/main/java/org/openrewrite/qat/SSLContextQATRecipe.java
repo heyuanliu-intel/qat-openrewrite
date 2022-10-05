@@ -41,7 +41,7 @@ public class SSLContextQATRecipe extends Recipe {
     
     private static final String KEY_GET_INSTANCE_PROVIDER = "GET_INSTANCE_PROVIDER";
 
-    private static final MethodMatcher GET_INSTANCE_PROTOCOL = new MethodMatcher("javax.net.ssl.SSLContext getInstance(string)");
+    private static final MethodMatcher GET_INSTANCE_PROTOCOL = new MethodMatcher("javax.net.ssl.SSLContext getInstance(String)");
 
     private static final MethodMatcher GET_INSTANCE = new MethodMatcher("javax.net.ssl.SSLContext getInstance(..)");
 
