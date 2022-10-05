@@ -17,8 +17,12 @@ package org.openrewrite.qat;
 
 import lombok.EqualsAndHashCode;
 import lombok.Value;
-import org.openrewrite.*;
-import org.openrewrite.internal.ListUtils;
+
+import org.openrewrite.Cursor;
+import org.openrewrite.ExecutionContext;
+import org.openrewrite.Option;
+import org.openrewrite.Recipe;
+import org.openrewrite.TreeVisitor;
 import org.openrewrite.java.JavaIsoVisitor;
 import org.openrewrite.java.JavaParser;
 import org.openrewrite.java.JavaTemplate;
@@ -34,6 +38,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @Value
 @EqualsAndHashCode(callSuper = true)
 public class SSLContextQATRecipe extends Recipe {
+    
+    private static final String KEY_GET_INSTANCE_PROVIDER = "GET_INSTANCE_PROVIDER";
+
+    private static final MethodMatcher GET_INSTANCE_PROTOCOL = new MethodMatcher("javax.net.ssl.SSLContext getInstance(string)");
 
     private static final MethodMatcher GET_INSTANCE = new MethodMatcher("javax.net.ssl.SSLContext getInstance(..)");
 
@@ -60,13 +68,14 @@ public class SSLContextQATRecipe extends Recipe {
     }
 
     // getApplicableTest() is to determine if a recipe should run on any files in the source set
-    //     When getApplicableTest() returns a positive result for any source file, the recipe gets to run on all files in the source set
+    // When getApplicableTest() returns a positive result for any source file, the recipe gets to run on all files in the source set
     // Usually getSingleSourceApplicableTest() is what you want, as it operates on a per-source file basis
     @Override
     protected TreeVisitor<?, ExecutionContext> getSingleSourceApplicableTest() {
         return new JavaIsoVisitor<ExecutionContext>() {
             @Override
             public J.CompilationUnit visitCompilationUnit(J.CompilationUnit cu, ExecutionContext executionContext) {
+                doAfterVisit(new UsesMethod<>(GET_INSTANCE_PROTOCOL));
                 doAfterVisit(new UsesMethod<>(GET_INSTANCE));
                 doAfterVisit(new UsesMethod<>(methodPattern));
                 return cu;
@@ -77,8 +86,7 @@ public class SSLContextQATRecipe extends Recipe {
     @Override
     public TreeVisitor<?, ExecutionContext> getVisitor() {
         return new JavaIsoVisitor<ExecutionContext>() {
-            private final JavaTemplate registerProvider = JavaTemplate.builder(this::getCursor,
-                            "OpenSSLProvider.register()")
+            private final JavaTemplate registerProvider = JavaTemplate.builder(this::getCursor, "OpenSSLProvider.register()")
                     // Parser used by JavaTemplate must be aware of types within the template
                     .javaParser(() -> JavaParser.fromJavaVersion()
                             // Added a runtime dependency on this module in the build.gradle.kts so that it can be looked up from the runtime classpath
@@ -90,28 +98,32 @@ public class SSLContextQATRecipe extends Recipe {
 
             // JavaTemplate has java standard library on the classpath by default
             // System is under java.lang, so no need to provide imports or classpath entries
-            private final JavaTemplate getInstanceWithSysProperty = JavaTemplate.builder(this::getCursor,
-                            "System.getProperty(\"ssl.protocol\")")
-                    .build();
+            private final JavaTemplate getInstanceWithSysProperty = JavaTemplate.builder(this::getCursor, "System.getProperty(\"ssl.protocol\")").build();
 
             private final MethodMatcher methodMatcher = new MethodMatcher(methodPattern);
 
             @Override
             public MethodDeclaration visitMethodDeclaration(MethodDeclaration method, ExecutionContext ctx) {
                 J.MethodDeclaration m = super.visitMethodDeclaration(method, ctx);
-                if (!methodMatcher.matches(method.getMethodType()) || method.getBody() == null) {
+                if (method.getBody() == null) {
                     return m;
                 }
+           
+                if (getCursor().pollMessage(KEY_GET_INSTANCE_PROVIDER) != null){
+                    // Using doNext() will apply the recipe to the entire source file
+                    // Directly invoking the visitor on the relevant subtree keeps changes constrained to just that subtree
+                    // This makes diffs easier to code review and repository maintainers more likely to accept pull requests
+                    Cursor parent = getCursor().getParent();
+                    assert parent != null; // Only a J.CompilationUnit would have null parent, so this is safe
+                    m = (J.MethodDeclaration) new UnnecessaryThrows().getVisitor().visitNonNull(m, ctx, parent);
+                    m = (J.MethodDeclaration) new UnnecessaryCatch().getVisitor().visitNonNull(m, ctx, parent);
+                    maybeRemoveImport("java.security.NoSuchProviderException");
+                }
 
-                Cursor parent = getCursor().getParent();
-                assert parent != null; // Only a J.CompilationUnit would have null parent, so this is safe
-                // Using doNext() will apply the recipe to the entire source file
-                // Directly invoking the visitor on the relevant subtree keeps changes constrained to just that subtree
-                // This makes diffs easier to code review and repository maintainers more likely to accept pull requests
-                m = (J.MethodDeclaration) new UnnecessaryThrows().getVisitor().visitNonNull(m, ctx, parent);
-                m = (J.MethodDeclaration) new UnnecessaryCatch().getVisitor().visitNonNull(m, ctx, parent);
-                maybeRemoveImport("java.security.NoSuchProviderException");
-
+                if (!methodMatcher.matches(method.getMethodType())) {
+                    return m;
+                }
+                
                 // Important for recipes to avoid making unnecessary changes, as recipes may run on code where no changes are required
                 // Failing to reject making unnecessary changes often results in duplicate code fragments being added by the recipe
                 if(containsOpenSSLRegisterInvocation(method)) {
@@ -119,7 +131,7 @@ public class SSLContextQATRecipe extends Recipe {
                 }
                 maybeAddImport("org.wildfly.openssl.OpenSSLProvider");
                 m =  m.withTemplate(registerProvider, method.getBody().getCoordinates().firstStatement());
-
+                
                 return m;
             }
 
@@ -129,6 +141,11 @@ public class SSLContextQATRecipe extends Recipe {
                 if (!GET_INSTANCE.matches(method)) {
                     return m;
                 }
+                
+                if (!GET_INSTANCE_PROTOCOL.matches(method)){
+                    getCursor().putMessageOnFirstEnclosing(J.MethodDeclaration.class, KEY_GET_INSTANCE_PROVIDER, true);
+                }
+
                 m = m.withTemplate(getInstanceWithSysProperty, method.getCoordinates().replaceArguments());
 
                 return m;

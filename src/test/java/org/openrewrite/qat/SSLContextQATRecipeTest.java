@@ -11,7 +11,7 @@ class SSLContextQATRecipeTest implements RewriteTest {
 
     @Override
     public void defaults(RecipeSpec spec) {
-        spec.recipe(new SSLContextQATRecipe("Test main()"))
+        spec.recipe(new SSLContextQATRecipe("TestProvider main()"))
             .parser(JavaParser.fromJavaVersion()
                 .logCompilationWarningsAndErrors(true)
                 .classpath("wildfly-openssl-java"))
@@ -26,7 +26,7 @@ class SSLContextQATRecipeTest implements RewriteTest {
 
                     import javax.net.ssl.SSLContext;
 
-                    public class Test {
+                    public class TestProvider {
                         public static void main() throws NoSuchAlgorithmException {
                             SSLContext ctx = SSLContext.getInstance("TLS");
                         }
@@ -39,7 +39,7 @@ class SSLContextQATRecipeTest implements RewriteTest {
                     
                     import org.wildfly.openssl.OpenSSLProvider;
 
-                    public class Test {
+                    public class TestProvider {
                         public static void main() throws NoSuchAlgorithmException {
                             OpenSSLProvider.register();
                             SSLContext ctx = SSLContext.getInstance(System.getProperty("ssl.protocol"));
@@ -68,11 +68,8 @@ class SSLContextQATRecipeTest implements RewriteTest {
                     
                     import javax.net.ssl.SSLContext;
                     
-                    import org.wildfly.openssl.OpenSSLProvider;
-                    
                     public class Test {
                         public static void main() throws NoSuchAlgorithmException {
-                            OpenSSLProvider.register();
                             SSLContext ctx = SSLContext.getInstance(System.getProperty("ssl.protocol"));
                         }
                     }
@@ -96,14 +93,10 @@ class SSLContextQATRecipeTest implements RewriteTest {
                     """,
                 """
                     import java.security.NoSuchAlgorithmException;
-                    
                     import javax.net.ssl.SSLContext;
-                    
-                    import org.wildfly.openssl.OpenSSLProvider;
                     
                     public class Test {
                         public static void main() throws NoSuchAlgorithmException {
-                            OpenSSLProvider.register();
                             SSLContext ctx = SSLContext.getInstance(System.getProperty("ssl.protocol"));
                         }
                     }
@@ -130,14 +123,10 @@ class SSLContextQATRecipeTest implements RewriteTest {
                     """,
                 """
                     import java.security.NoSuchAlgorithmException;
-                    
                     import javax.net.ssl.SSLContext;
-                    
-                    import org.wildfly.openssl.OpenSSLProvider;
                     
                     public class Test {
                         public static void main() throws NoSuchAlgorithmException {
-                            OpenSSLProvider.register();
                             SSLContext ctx = SSLContext.getInstance(System.getProperty("ssl.protocol"));
                         }
                     }
@@ -169,12 +158,9 @@ class SSLContextQATRecipeTest implements RewriteTest {
                     
                     import javax.net.ssl.SSLContext;
                     
-                    import org.wildfly.openssl.OpenSSLProvider;
-                    
                     public class Test {
                     
                         public static void main() throws NoSuchAlgorithmException {
-                            OpenSSLProvider.register();
                             SSLContext ctx = SSLContext.getInstance(System.getProperty("ssl.protocol"));
                         }
                     }
