@@ -30,6 +30,7 @@ import org.openrewrite.java.MethodMatcher;
 import org.openrewrite.java.cleanup.UnnecessaryCatch;
 import org.openrewrite.java.cleanup.UnnecessaryThrows;
 import org.openrewrite.java.search.UsesMethod;
+import org.openrewrite.java.search.DeclaresMethod;
 import org.openrewrite.java.tree.J;
 import org.openrewrite.java.tree.J.MethodDeclaration;
 
@@ -75,9 +76,8 @@ public class SSLContextQATRecipe extends Recipe {
         return new JavaIsoVisitor<ExecutionContext>() {
             @Override
             public J.CompilationUnit visitCompilationUnit(J.CompilationUnit cu, ExecutionContext executionContext) {
-                doAfterVisit(new UsesMethod<>(GET_INSTANCE_PROTOCOL));
+                doAfterVisit(new DeclaresMethod<>(methodPattern));
                 doAfterVisit(new UsesMethod<>(GET_INSTANCE));
-                doAfterVisit(new UsesMethod<>(methodPattern));
                 return cu;
             }
         };
@@ -86,13 +86,22 @@ public class SSLContextQATRecipe extends Recipe {
     @Override
     public TreeVisitor<?, ExecutionContext> getVisitor() {
         return new JavaIsoVisitor<ExecutionContext>() {
-            private final JavaTemplate registerProvider = JavaTemplate.builder(this::getCursor, "OpenSSLProvider.register()")
-                    // Parser used by JavaTemplate must be aware of types within the template
-                    .javaParser(() -> JavaParser.fromJavaVersion()
-                            // Added a runtime dependency on this module in the build.gradle.kts so that it can be looked up from the runtime classpath
-                            .classpath("wildfly-openssl-java")
-                            .build())
+            private final JavaTemplate registerProvider = JavaTemplate.builder(this::getCursor, 
+            "OpenSSLProvider.register();\n" +
+            "try {\n" +
+            "    SSLContext sslContext = SSLContext.getInstance(System.getProperty(\"ssl.protocol\"));\n" +
+            "    SSLContext.setDefault(sslContext);\n" +
+            "} catch (NoSuchAlgorithmException e) {\n" +
+            "}\n"
+            )
+            // Parser used by JavaTemplate must be aware of types within the template
+            .javaParser(() -> JavaParser.fromJavaVersion()
+                    // Added a runtime dependency on this module in the build.gradle.kts so that it can be looked up from the runtime classpath
+                    .classpath("wildfly-openssl-java")
+                    .build())
                     // Have to provide imports referenced in within the snippet for anything not already known to be imported within the file
+                    .imports("javax.net.ssl.SSLContext")
+                    .imports("java.security.NoSuchAlgorithmException")
                     .imports("org.wildfly.openssl.OpenSSLProvider")
                     .build();
 
@@ -129,7 +138,10 @@ public class SSLContextQATRecipe extends Recipe {
                 if(containsOpenSSLRegisterInvocation(method)) {
                     return m;
                 }
+                
+                maybeAddImport("javax.net.ssl.SSLContext");
                 maybeAddImport("org.wildfly.openssl.OpenSSLProvider");
+                maybeAddImport("java.security.NoSuchAlgorithmException");
                 m =  m.withTemplate(registerProvider, method.getBody().getCoordinates().firstStatement());
                 
                 return m;

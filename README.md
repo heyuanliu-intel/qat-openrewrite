@@ -5,7 +5,7 @@ This project implements a [Rewrite module](https://github.com/openrewrite/rewrit
 ## Intel QAT enabled OpenSSL Recipes
 
 | Recipe Name                                                    | Description                                                                                      |
-|----------------------------------------------------------------| ------------------------------------------------------------------------------------------------ |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
 | [Add wildfly openssl as maven dependency](#AddMavenDependency) | Add wildfly openssl for a Maven build.                                                           |
 | [Register OpenSSL Provider](#RegisterProvider)                 | Register OpenSSL Provider in the project startup method.                                         |
 | [Migrate SSLContext getInstance API](#MigrateOpenSSLContext)   | Migrate SSLContext getInstance API from hard-coded ssl protocol and provider to system property. |
@@ -26,8 +26,7 @@ This recipe will add or update the latest 2.2.5.Final versions of the wildfly op
 
 ### Register OpenSSL Provider<a name="RegisterProvider"></a>
 
-This recipe will register the OpenSSLProvider in the application startup method. Should define the methodPattern to match the application startup code. For example: 
-rewrite.yml
+This recipe will register the OpenSSLProvider in the application startup method. Should define the methodPattern to match the application startup code. For example: rewrite.yml
 
 ```
 ---
@@ -39,10 +38,12 @@ recipeList:
       methodPattern: com.test.Startup Main()
 ```
 
-And it will register OpenSSLProvider in the application startup code.
+And it will register OpenSSLProvider in the application startup code and set the default SSLContext.
 
 ```
  OpenSSLProvider.register();
+ SSLContext sslContext = SSLContext.getInstance(System.getProperty("ssl.protocol"));
+ SSLContext.setDefault(sslContext);
 ```
 
 ## Converting OpenSSL getInstance method from hard-coded protocol/provider to system property <a name="MigrateOpenSSLContext"></a>

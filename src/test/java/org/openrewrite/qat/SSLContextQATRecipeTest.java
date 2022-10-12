@@ -22,27 +22,28 @@ class SSLContextQATRecipeTest implements RewriteTest {
     void registerProvider() {
         rewriteRun(
             java("""
-                    import java.security.NoSuchAlgorithmException;
-
-                    import javax.net.ssl.SSLContext;
-
                     public class TestProvider {
-                        public static void main() throws NoSuchAlgorithmException {
-                            SSLContext ctx = SSLContext.getInstance("TLS");
+                        public static void main() {
+                            System.out.println("startup");
                         }
                     }
                     """,
                 """
-                    import java.security.NoSuchAlgorithmException;
+                    import org.wildfly.openssl.OpenSSLProvider;
 
                     import javax.net.ssl.SSLContext;
                     
-                    import org.wildfly.openssl.OpenSSLProvider;
+                    import java.security.NoSuchAlgorithmException;
 
                     public class TestProvider {
-                        public static void main() throws NoSuchAlgorithmException {
+                        public static void main() {
                             OpenSSLProvider.register();
-                            SSLContext ctx = SSLContext.getInstance(System.getProperty("ssl.protocol"));
+                            try {
+                                SSLContext sslContext = SSLContext.getInstance(System.getProperty("ssl.protocol"));
+                                SSLContext.setDefault(sslContext);
+                            } catch (NoSuchAlgorithmException e) {
+                            }
+                            System.out.println("startup");
                         }
                     }
                     """)
